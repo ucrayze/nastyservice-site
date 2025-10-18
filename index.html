@@ -1,0 +1,78 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8"/>
+  <meta name="viewport" content="width=device-width,initial-scale=1"/>
+  <title>Support Scorecards</title>
+  <link rel="preload" href="data/companies.json" as="fetch" crossorigin="anonymous">
+  <style>
+    body{font-family:system-ui,-apple-system,Segoe UI,Roboto,Ubuntu;max-width:1000px;margin:0 auto;padding:24px;line-height:1.45}
+    .grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:16px}
+    .card{border:1px solid #eee;border-radius:12px;padding:16px;box-shadow:0 1px 4px rgba(0,0,0,.05)}
+    .pill{display:inline-block;padding:2px 8px;border-radius:999px;background:#f2f4f7;margin-right:6px;font-size:12px}
+    .muted{color:#666}
+    input[type=search]{width:100%;padding:10px 12px;border:1px solid #ddd;border-radius:8px;margin:8px 0 16px}
+    .score{font-weight:700}
+  </style>
+</head>
+<body>
+  <header>
+    <h1>Support Scorecards</h1>
+    <p class="muted">Real user reports comparing sales vs support reality. Companies may post a response.</p>
+    <nav>
+      <a href="submit.html">Submit a report</a> · <a href="companies.html">Browse all</a> · <a href="#" id="about">Right of reply</a>
+    </nav>
+  </header>
+
+  <section>
+    <input id="q" type="search" placeholder="Search company, tag, or locale… (e.g., 'offshore', 'noise')" />
+    <div id="results" class="grid" aria-live="polite"></div>
+  </section>
+
+  <footer class="muted" style="margin-top:28px">
+    Community opinions; not independently verified. To request edits or reply, email takedown@yourdomain.
+  </footer>
+
+  <script>
+    async function transparencyScore(item){
+      let s=0;
+      if((item.sales_locale||"").trim().toLowerCase()===(item.support_locale||"").trim().toLowerCase()) s+=40;
+      if((item.notes_disclose_location||false)===true) s+=20;
+      if((item.escalation_path||"").length>0) s+=20;
+      if(!(item.tags||[]).some(t=>["noise","accent","scripted"].includes(t))) s+=20;
+      return s;
+    }
+    function match(item, q){
+      const hay = [item.name, item.sales_locale, item.support_locale, item.support_quality_notes, ...(item.tags||[])].join(" ").toLowerCase();
+      return hay.includes(q);
+    }
+    function tagPills(tags){ return (tags||[]).map(t=>`<span class="pill">${t}</span>`).join(" "); }
+
+    async function render(q=""){
+      const res = await fetch("data/companies.json");
+      const data = await res.json();
+      const list = q ? data.filter(it=>match(it,q.toLowerCase())) : data;
+      const cards = await Promise.all(list.map(async it=>{
+        const score = await transparencyScore(it);
+        return `
+          <article class="card">
+            <h3>${it.name}</h3>
+            <div><span class="pill">Sales: ${it.sales_locale||"?"}</span><span class="pill">Support: ${it.support_locale||"?"}</span></div>
+            <p class="muted">${it.support_quality_notes||""}</p>
+            <p><span class="score">Transparency: ${score}</span>/100 · <span class="muted">${it.date_reported||""}</span></p>
+            <p>${tagPills(it.tags)}</p>
+            <details><summary>Evidence</summary>
+              <ul>
+                ${(it.evidence||[]).map(e=>`<li>${e.type}: <a href="${e.url}" rel="nofollow noopener" target="_blank">${e.url}</a></li>`).join("")}
+              </ul>
+              <p class="muted">${it.disclaimer||""}</p>
+            </details>
+          </article>`;
+      }));
+      document.getElementById("results").innerHTML = cards.join("") || `<p class="muted">No matches.</p>`;
+    }
+    document.getElementById("q").addEventListener("input", e=>render(e.target.value));
+    render();
+  </script>
+</body>
+</html>
