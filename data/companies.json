@@ -1,1 +1,19 @@
 []
+[
+  {
+    "name": "Vivint",
+    "sales_locale": "US-based representative (pleasant experience)",
+    "support_locale": "Offshore (Asia, roosters audible)",
+    "support_quality_notes": "Sales process excellent — clear English and professional tone. Support experience was frustrating: strong accent, background noise (roosters), scripted responses, limited technical understanding.",
+    "date_reported": "2025-10-18",
+    "evidence": [
+      {
+        "type": "call_log",
+        "url": ""
+      }
+    ],
+    "tags": ["outsourced", "noise", "accent", "bait-vs-support"],
+    "status": "user_report",
+    "disclaimer": "Allegation based on personal experience; not independently verified."
+  }
+]
