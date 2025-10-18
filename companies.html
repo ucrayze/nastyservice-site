@@ -1,0 +1,52 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8"/>
+  <meta name="viewport" content="width=device-width,initial-scale=1"/>
+  <title>All Companies · Support Scorecards</title>
+  <style>
+    body{font-family:system-ui,-apple-system,Segoe UI,Roboto,Ubuntu;max-width:1000px;margin:0 auto;padding:24px;line-height:1.45}
+    .grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:16px}
+    .card{border:1px solid #eee;border-radius:12px;padding:16px;box-shadow:0 1px 4px rgba(0,0,0,.05)}
+    .pill{display:inline-block;padding:2px 8px;border-radius:999px;background:#f2f4f7;margin-right:6px;font-size:12px}
+    .muted{color:#666}
+    .score{font-weight:700}
+    a{color:#0645ad}
+  </style>
+</head>
+<body>
+  <h1>All Companies</h1>
+  <p class="muted"><a href="./">← Back to home</a></p>
+  <div id="results" class="grid" aria-live="polite"></div>
+
+  <script>
+    async function transparencyScore(item){
+      let s=0;
+      if((item.sales_locale||"").trim().toLowerCase()===(item.support_locale||"").trim().toLowerCase()) s+=40;
+      if((item.notes_disclose_location||false)===true) s+=20;
+      if((item.escalation_path||"")!=="") s+=20;
+      if(!(item.tags||[]).some(t=>["noise","accent","scripted"].includes(t))) s+=20;
+      return s;
+    }
+    function pill(t){return `<span class="pill">${t}</span>`}
+    (async () => {
+      const res = await fetch(`data/companies.json?cache=${Date.now()}`);
+      const data = await res.json();
+      const html = await Promise.all(data.map(async it => `
+        <article class="card">
+          <h3>${it.name}</h3>
+          <div>${pill(`Sales: ${it.sales_locale||"?"}`)}${pill(`Support: ${it.support_locale||"?"}`)}</div>
+          <p class="muted">${it.support_quality_notes||""}</p>
+          <p><span class="score">Transparency: ${await transparencyScore(it)}</span>/100 · <span class="muted">${it.date_reported||""}</span></p>
+          <p>${(it.tags||[]).map(pill).join(" ")}</p>
+          <details><summary>Evidence</summary>
+            <ul>${(it.evidence||[]).map(e=>`<li>${e.type}: ${e.url?`<a href="${e.url}" target="_blank" rel="nofollow noopener">${e.url}</a>`:"(none)"}</li>`).join("")}</ul>
+            <p class="muted">${it.disclaimer||""}</p>
+          </details>
+        </article>
+      `));
+      document.getElementById("results").innerHTML = html.join("") || `<p class="muted">No reports yet.</p>`;
+    })();
+  </script>
+</body>
+</html>
