@@ -10,17 +10,21 @@
     .grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:16px}
     .card{border:1px solid #eee;border-radius:12px;padding:16px;box-shadow:0 1px 4px rgba(0,0,0,.05)}
     .pill{display:inline-block;padding:2px 8px;border-radius:999px;background:#f2f4f7;margin-right:6px;font-size:12px}
-    .muted{color:#666}
+    .muted{color:#444}
     input[type=search]{width:100%;padding:10px 12px;border:1px solid #ddd;border-radius:8px;margin:8px 0 16px}
     .score{font-weight:700}
+    nav a{margin-right:.5rem}
+    .vote-btn{cursor:pointer;font-size:18px;border:1px solid #e5e7eb;border-radius:8px;padding:4px 8px;background:#fff}
+    .vote-wrap{display:flex;align-items:center;gap:8px;margin-top:10px}
   </style>
 </head>
 <body>
   <header>
     <h1>Support Scorecards</h1>
-    <p class="muted">Promise excellence, but outsource misery. Great sales. Horrible service.</p>
+    <p class="muted">Exposing companies that promise excellence, but outsource misery. Great sales. Horrible service.</p>
     <nav>
-      <a href="submit.html">Submit a report</a> · <a href="companies.html">Browse all</a> · <a href="#" id="about">Right of reply</a>
+      <a href="submit.html">Submit a report</a> ·
+      <a href="companies.html">Browse all</a>
     </nav>
   </header>
 
@@ -34,43 +38,85 @@
   </footer>
 
   <script>
+    // --- Voting (per-browser local storage) ---
+    function voteKey(name){ return `vote-${name}`; }
+    function getVotes(name){
+      try { return JSON.parse(localStorage.getItem(voteKey(name))||'{"up":0,"down":0}'); }
+      catch { return {up:0,down:0}; }
+    }
+    function setVotes(name, v){ localStorage.setItem(voteKey(name), JSON.stringify(v)); }
+    function vote(name, dir){
+      const v = getVotes(name);
+      if(dir==='up') v.up++;
+      if(dir==='down') v.down++;
+      setVotes(name, v);
+      renderVotes(name);
+    }
+    function renderVotes(name){
+      const v = getVotes(name);
+      const el = document.getElementById(`score-${cssId(name)}`);
+      if(!el) return;
+      const total = v.up + v.down;
+      const pctDown = total ? Math.round((v.down/total)*100) : 0;
+      el.textContent = `👍 ${v.up} | 👎 ${v.down}  (${pctDown}% down)`;
+    }
+
+    // --- Utilities ---
+    function cssId(s){ return s.replace(/\s+/g,'-').replace(/[^a-zA-Z0-9\-_]/g,'').toLowerCase(); }
+    function tagPills(tags){ return (tags||[]).map(t=>`<span class="pill">${t}</span>`).join(" "); }
+
     async function transparencyScore(item){
       let s=0;
       if((item.sales_locale||"").trim().toLowerCase()===(item.support_locale||"").trim().toLowerCase()) s+=40;
       if((item.notes_disclose_location||false)===true) s+=20;
-      if((item.escalation_path||"").length>0) s+=20;
+      if((item.escalation_path||"")!=="") s+=20;
       if(!(item.tags||[]).some(t=>["noise","accent","scripted"].includes(t))) s+=20;
       return s;
     }
+
     function match(item, q){
       const hay = [item.name, item.sales_locale, item.support_locale, item.support_quality_notes, ...(item.tags||[])].join(" ").toLowerCase();
       return hay.includes(q);
     }
-    function tagPills(tags){ return (tags||[]).map(t=>`<span class="pill">${t}</span>`).join(" "); }
 
     async function render(q=""){
-      const res = await fetch("data/companies.json");
+      const res = await fetch(`data/companies.json?cache=${Date.now()}`);
       const data = await res.json();
       const list = q ? data.filter(it=>match(it,q.toLowerCase())) : data;
+
       const cards = await Promise.all(list.map(async it=>{
         const score = await transparencyScore(it);
+        const id = cssId(it.name);
         return `
-          <article class="card">
+          <article class="card" id="card-${id}">
             <h3>${it.name}</h3>
             <div><span class="pill">Sales: ${it.sales_locale||"?"}</span><span class="pill">Support: ${it.support_locale||"?"}</span></div>
             <p class="muted">${it.support_quality_notes||""}</p>
             <p><span class="score">Transparency: ${score}</span>/100 · <span class="muted">${it.date_reported||""}</span></p>
             <p>${tagPills(it.tags)}</p>
-            <details><summary>Evidence</summary>
+
+            <div class="vote-wrap">
+              <button class="vote-btn" onclick="vote('${it.name}','up')" aria-label="Thumbs up ${it.name}">👍</button>
+              <button class="vote-btn" onclick="vote('${it.name}','down')" aria-label="Thumbs down ${it.name}">👎</button>
+              <span id="score-${id}" class="muted"></span>
+            </div>
+
+            <details style="margin-top:8px"><summary>Evidence</summary>
               <ul>
-                ${(it.evidence||[]).map(e=>`<li>${e.type}: <a href="${e.url}" rel="nofollow noopener" target="_blank">${e.url}</a></li>`).join("")}
+                ${(it.evidence||[]).map(e=>`<li>${e.type}: ${e.url?`<a href="${e.url}" rel="nofollow noopener" target="_blank">${e.url}</a>`:"(none)"}</li>`).join("")}
               </ul>
               <p class="muted">${it.disclaimer||""}</p>
             </details>
           </article>`;
       }));
-      document.getElementById("results").innerHTML = cards.join("") || `<p class="muted">No matches.</p>`;
+
+      const results = document.getElementById("results");
+      results.innerHTML = cards.join("") || `<p class="muted">No matches.</p>`;
+
+      // After DOM updated, render vote counts for all cards
+      list.forEach(it => renderVotes(it.name));
     }
+
     document.getElementById("q").addEventListener("input", e=>render(e.target.value));
     render();
   </script>
